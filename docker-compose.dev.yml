@@ -45,9 +45,38 @@ services:
       - "8000:8000" # Expose backend port
     networks:
       - app_network
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:8000/api/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  zero_cache:
+    build:
+      context: .
+      dockerfile: apps/zero-cache/Dockerfile.dev
+    volumes:
+      - replica:/zero_data
+      - /app/apps/zero-cache/node_modules
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    environment:
+      - ZERO_UPSTREAM_DB=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      - ZERO_REPLICA_FILE=/zero_data/replica.db
+      - ZERO_DEBUG=true
+      - ZERO_AUTH_SECRET=${ZERO_AUTH_SECRET}
+    ports:
+      - 4848:4848
+    networks:
+      - app_network
 
 volumes:
   postgres_data:
+  replica:
 
 networks:
   app_network:

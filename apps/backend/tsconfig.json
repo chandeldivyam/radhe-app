@@ -15,7 +15,19 @@
       "noUnusedLocals": true,
       "noUnusedParameters": true,
       "noImplicitReturns": true,
-      "noFallthroughCasesInSwitch": true
+      "noFallthroughCasesInSwitch": true,
+      "baseUrl": ".",
+      "paths": {
+        "@/*": ["src/*"],
+        "@config/*": ["src/config/*"],
+        "@db/*": ["src/db/*"],
+        "@utils/*": ["src/utils/*"],
+        "@errors/*": ["src/errors/*"],
+        "@schemas/*": ["src/schemas/*"],
+        "@services/*": ["src/services/*"],
+        "@routes/*": ["src/routes/*"],
+        "@middlewares/*": ["src/middlewares/*"]
+      }
     },
     "include": ["src/**/*"],
     "exclude": ["node_modules", "dist"]
