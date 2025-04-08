@@ -74,6 +74,22 @@ services:
     networks:
       - app_network
 
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile.dev
+    volumes:
+      - ./apps/frontend:/app/apps/frontend
+      - ./packages/zero-shared:/app/packages/zero-shared
+      - /app/apps/frontend/node_modules
+      - /app/packages/zero-shared/node_modules
+    ports:
+      - "5173:5173"
+    networks:
+      - app_network
+    depends_on:
+      - backend
+
 volumes:
   postgres_data:
   replica:

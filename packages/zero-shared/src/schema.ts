@@ -55,6 +55,7 @@ export const permissions = definePermissions<AuthData, Schema>(schema, () => {
     authData: AuthData,
     eb: ExpressionBuilder<Schema, 'user' | 'organization'>
   ) => {
+    console.log(authData)
     return eb.cmp('organizationId', '=', authData.organizationId);
   };
   return {

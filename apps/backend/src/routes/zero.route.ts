@@ -2,7 +2,7 @@
 import { Router } from 'express';
 
 import postgres from 'postgres';
-import { authenticate } from '../middlewares/authenticate.js'; // Your JWT auth middleware
+import { serverAuthenticate } from '../middlewares/authenticate.js'; // Your JWT auth middleware
 import config from '../config/index.js'; // Import your config for DB URL
 import { ApiError, ErrorType } from '../errors/ApiError.js';
 import type { AuthData } from '@radhe/zero-shared'
@@ -26,7 +26,7 @@ const pgClient = postgres(config.postgres.url, {
 // Use POST method as specified by Zero
 router.post(
   '/push',
-  authenticate, // Apply your existing JWT authentication middleware
+  serverAuthenticate,
   async (req, res, next) => {
     try {
       // 1. Authentication Check (handled by middleware)
