@@ -1,0 +1,13 @@
+{
+    "name": "zero-cache",
+    "private": true,
+    "version": "1.0.0",
+    "type": "module",
+    "scripts": {
+      "dev:zero-cache": "zero-cache-dev -p schema.ts"
+    },
+    "dependencies": {
+      "@rocicorp/zero": "0.18.2025040300"
+    }
+  }
+  

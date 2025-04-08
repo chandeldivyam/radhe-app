@@ -1,0 +1,38 @@
+# Stage 1: Base and Dependencies
+FROM node:22-slim AS base
+
+# Set working directory for the monorepo root
+WORKDIR /app
+
+# Install pnpm globally
+RUN npm install -g pnpm@10.8.0
+
+# Copy root dependency manifests
+COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml ./
+
+# Copy workspace package manifests BEFORE installing dependencies
+COPY apps/backend/package.json ./apps/backend/
+COPY packages/zero-shared/package.json ./packages/zero-shared/
+
+# Install dependencies ONLY for the backend app and its workspace dependencies
+RUN pnpm install --filter backend... --frozen-lockfile
+
+# Stage 2: Development Image
+FROM base AS development
+
+# Set working directory for the monorepo root
+WORKDIR /app
+
+# Copy the rest of the source code
+COPY packages/zero-shared ./packages/zero-shared
+COPY apps/backend ./apps/backend
+
+# Set the final working directory to the backend app's directory
+WORKDIR /app/apps/backend
+
+# Expose the port the app runs on (as defined in src/index.ts)
+EXPOSE 8000
+
+# Ensure entrypoint is executable and use it to apply migrations and start the server
+RUN chmod +x ./entrypoint.dev.sh
+CMD ["./entrypoint.dev.sh"]

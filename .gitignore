@@ -18,7 +18,8 @@ pnpm-debug.log*
 
 # Environment variables
 .env
-.env.*
+.env.prod
+.env.production
 .env.local
 
 # OS generated files

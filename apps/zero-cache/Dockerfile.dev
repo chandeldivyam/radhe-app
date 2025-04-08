@@ -1,0 +1,16 @@
+FROM rocicorp/zero:latest
+
+WORKDIR /app
+
+RUN npm install -g pnpm@10.8.0
+
+COPY package.json pnpm-lock.yaml* ./
+COPY apps/zero-cache/package.json ./apps/zero-cache/
+COPY apps/zero-cache/.env ./apps/zero-cache/
+COPY packages/zero-shared/src/schema.ts ./apps/zero-cache/
+
+RUN pnpm --filter zero-cache install
+
+WORKDIR /app/apps/zero-cache
+
+CMD ["zero-cache-dev", "-p", "schema.ts"]
