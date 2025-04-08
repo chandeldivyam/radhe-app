@@ -1,0 +1,16 @@
+{
+  "name": "radhe-app",
+  "private": true,
+  "scripts": {
+    "dev:frontend": "pnpm --filter frontend dev",
+    "dev:backend": "pnpm --filter backend dev",
+    "build": "pnpm -r run build"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@rocicorp/zero-sqlite3",
+      "bcrypt"
+    ]
+  },
+  "packageManager": "pnpm@10.8.0"
+}

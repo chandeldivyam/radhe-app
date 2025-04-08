@@ -1,0 +1,43 @@
+# Dependency directories
+node_modules/
+packages/*/node_modules/
+apps/*/node_modules/
+
+# Build output directories
+dist/
+build/
+packages/**/dist/
+packages/**/build/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Environment variables
+.env
+.env.*
+.env.local
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Miscellaneous
+coverage/
+*.pid
+*.seed
+*.pid.lock
+
+# Optional: Ignore editor and IDE files
+.vscode/
+.idea/
+
+# Docker
+.dockerignore
+
+# Others
+*.tgz
+package-lock.json
