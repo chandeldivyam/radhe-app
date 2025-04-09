@@ -1,0 +1,11 @@
+# ./backend/.prettierignore
+node_modules
+dist
+coverage
+.env
+package-lock.json
+pnpm-lock.yaml
+
+# Drizzle specific (adjust if needed)
+drizzle/
+drizzle.config.ts

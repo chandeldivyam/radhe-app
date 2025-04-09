@@ -47,7 +47,11 @@ export const authenticate = (
   }
 };
 
-export const serverAuthenticate = (req: Request, res: Response, next: NextFunction) => {
+export const serverAuthenticate = (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
   try {
     const token = req.headers.authorization?.split('Bearer ')[1];
     if (!token) {
