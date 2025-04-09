@@ -21,7 +21,7 @@ router.post(
         expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         httpOnly: process.env.NODE_ENV === 'production',
         secure: process.env.NODE_ENV === 'production',
-        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+        sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
       });
       res.status(201).json({ message: 'Signup successful' });
     } catch (error) {
@@ -37,7 +37,7 @@ router.post('/login', validateRequest(loginSchema), async (req, res, next) => {
       expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       httpOnly: process.env.NODE_ENV === 'production',
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     });
     res.status(200).json({ message: 'Login successful' });
   } catch (error) {

@@ -10,7 +10,7 @@ async function handleApiResponse(response: Response) {
         try {
             errorData = await response.json();
         } catch (e) {
-            // Ignore if response body is not JSON
+            console.log(e);
         }
         console.error("API Error:", response.status, response.statusText, errorData);
         throw new Error(errorData?.message || `HTTP error! status: ${response.status}`);

@@ -6,13 +6,15 @@ import { errorHandler } from './errors/errorHandler.js';
 import cors from 'cors';
 
 const app = express();
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'; 
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Middlewares
-app.use(cors({
-  origin: frontendUrl,
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: frontendUrl,
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
