@@ -37,23 +37,9 @@ function UserListPage() {
           <div style={{ display: 'flex', alignItems: 'center', marginTop: 10 }}>
             <strong>Status:</strong> 
             <span style={{ marginLeft: 5 }}>{user.isActive ? 'Active' : 'Inactive'}</span>
-            <Button onClick={() => handleToggleActive(user.userId, user.isActive)}>
+            <Button className="ml-2" onClick={() => handleToggleActive(user.userId, user.isActive)}>
               {user.isActive ? 'Deactivate' : 'Activate'}
             </Button>
-            <button 
-              onClick={() => handleToggleActive(user.userId, user.isActive)}
-              style={{ 
-                marginLeft: 10, 
-                backgroundColor: user.isActive ? '#f44336' : '#4CAF50',
-                color: 'white',
-                border: 'none',
-                padding: '5px 10px',
-                borderRadius: 4,
-                cursor: 'pointer'
-              }}
-            >
-              {user.isActive ? 'Deactivate' : 'Activate'}
-            </button>
           </div>
         </div>
       ))}

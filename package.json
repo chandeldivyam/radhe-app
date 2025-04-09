@@ -9,6 +9,7 @@
     "dev_up": "docker-compose -f docker-compose.dev.yml up",
     "dev_down": "docker-compose -f docker-compose.dev.yml down",
     "dev_rm": "docker-compose -f docker-compose.dev.yml down -v",
+    "dev_frontend": "docker-compose -f docker-compose.dev.yml up --build frontend -d",
     "shell": "node scripts/shell.js"
   },
   "pnpm": {
