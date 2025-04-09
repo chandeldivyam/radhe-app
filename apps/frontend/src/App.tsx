@@ -1,11 +1,9 @@
 import { useZero } from "./features/sync/use-zero";
 import { useQuery } from "@rocicorp/zero/react";
-import { getJwt } from "./lib/jwt";
 
 function App() {
   const z = useZero();
-  const payload = getJwt();
-  const usersQueryResult = useQuery(z.query.user.where('organizationId', payload?.organizationId as string));
+  const usersQueryResult = useQuery(z.query.user);
   
   if (!Array.isArray(usersQueryResult)) {
     return <div>Loading users...</div>;
@@ -14,7 +12,6 @@ function App() {
   const users = usersQueryResult[0];
   
   const handleToggleActive = (userId: string, currentStatus: boolean) => {
-    console.log(`Toggling user ${userId} status from ${currentStatus ? 'active' : 'inactive'} to ${!currentStatus ? 'active' : 'inactive'}`);
     z.mutate.user.update({
       userId,
       isActive: !currentStatus
@@ -23,6 +20,7 @@ function App() {
 
   return (
     <div style={{ padding: 20 }}>
+      <h1>Users</h1>
       {users.map(user => (
         <div key={user.userId} style={{ marginBottom: 20, padding: 15, border: '1px solid #ddd', borderRadius: 5 }}>
           <div>

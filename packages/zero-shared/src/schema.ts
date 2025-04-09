@@ -53,18 +53,23 @@ export const permissions = definePermissions<AuthData, Schema>(schema, () => {
   ) => cmpLit(authData.sub, 'IS NOT', null);
   const userSameOrg = (
     authData: AuthData,
-    eb: ExpressionBuilder<Schema, 'user' | 'organization'>
+    eb: ExpressionBuilder<Schema, 'user'>
   ) => {
-    console.log(authData)
-    return eb.cmp('organizationId', '=', authData.organizationId);
+    return eb.cmp('organizationId', '=', authData.organizationId ?? "");
+  };
+  const canSeeUsers = (
+    authData: AuthData,
+    eb: ExpressionBuilder<Schema, 'user'>
+  ) => {
+    return eb.and(userIsLoggedIn(authData, eb), userSameOrg(authData, eb));
   };
   return {
     user: {
       row: {
-        select: [userIsLoggedIn, userSameOrg],
+        select: [canSeeUsers],
         update: {
-          preMutation: [userIsLoggedIn, userSameOrg],
-          postMutation: [userIsLoggedIn, userSameOrg]
+          preMutation: [canSeeUsers],
+          postMutation: [canSeeUsers]
         }
       }
     }
