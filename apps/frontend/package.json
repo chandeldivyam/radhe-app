@@ -10,8 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.0.1",
     "@radhe/zero-shared": "workspace:*",
-    "@radix-ui/react-slot": "^1.1.2",
+    "@radix-ui/react-label": "^2.1.3",
+    "@radix-ui/react-navigation-menu": "^1.2.6",
+    "@radix-ui/react-slot": "^1.2.0",
     "@rocicorp/zero": "0.18.2025040300",
     "@tailwindcss/vite": "^4.1.3",
     "class-variance-authority": "^0.7.1",
@@ -19,11 +22,16 @@
     "jose": "^6.0.10",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.487.0",
+    "next-themes": "^0.4.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-hook-form": "^7.55.0",
+    "react-router-dom": "^7.5.0",
+    "sonner": "^2.0.3",
     "tailwind-merge": "^3.1.0",
     "tailwindcss": "^4.1.3",
-    "tw-animate-css": "^1.2.5"
+    "tw-animate-css": "^1.2.5",
+    "zod": "^3.24.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.21.0",
@@ -32,10 +40,13 @@
     "@types/react": "^19.0.10",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react-swc": "^3.8.0",
+    "autoprefixer": "^10.4.21",
     "eslint": "^9.21.0",
     "eslint-plugin-react-hooks": "^5.1.0",
     "eslint-plugin-react-refresh": "^0.4.19",
     "globals": "^15.15.0",
+    "postcss": "^8.5.3",
+    "tailwindcss-animate": "^1.0.7",
     "typescript": "~5.7.2",
     "typescript-eslint": "^8.24.1",
     "vite": "^6.2.0"

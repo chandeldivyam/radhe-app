@@ -3,10 +3,16 @@ import cookieParser from 'cookie-parser';
 import config from './config/index.js';
 import routes from './routes/index.js';
 import { errorHandler } from './errors/errorHandler.js';
+import cors from 'cors';
 
 const app = express();
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'; 
 
 // Middlewares
+app.use(cors({
+  origin: frontendUrl,
+  credentials: true
+}));
 app.use(express.json());
 app.use(cookieParser());
 

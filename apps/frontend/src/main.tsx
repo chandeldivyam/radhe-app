@@ -1,33 +1,12 @@
 // frontend/src/main.tsx
-import { StrictMode, useSyncExternalStore, useCallback } from 'react';
+import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { RouterProvider } from 'react-router-dom';
 import './index.css';
-import App from './App.tsx';
-import { ZeroProvider } from '@rocicorp/zero/react';
-import { zeroRef } from './features/sync/zero-setup.ts'; // Import zeroRef
-import { LoginProvider } from './features/auth/LoginProvider.tsx'; // Import LoginProvider
+import { router } from './routes'; // Import the router configuration
 
-// Main component to manage Zero instance connection
-function Main() {
-  const z = useSyncExternalStore(
-    zeroRef.onChange,
-    useCallback(() => zeroRef.value, []),
-  );
-
-  // Don't render until the Zero instance is ready
-  if (!z) {
-    // Optionally return a loading spinner/message
-    return <div>Loading Zero Sync...</div>;
-  }
-
-  return (
-    <ZeroProvider zero={z}>
-      <LoginProvider>
-        <App />
-      </LoginProvider>
-    </ZeroProvider>
-  );
-}
+// No need for the previous Main component or manual Zero checking here,
+// it's handled within RootLayout and its children.
 
 // Ensure the root element exists
 const rootElement = document.getElementById('root');
@@ -37,6 +16,6 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <Main />
+    <RouterProvider router={router} />
   </StrictMode>,
 );

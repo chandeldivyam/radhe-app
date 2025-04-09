@@ -18,6 +18,8 @@ authAtom.value =
     ? (decodedJwt as LoginState)
     : undefined;
 
+refreshAuth()
+
 authAtom.onChange(auth => {
   zeroAtom.value?.close();
   const authData = auth;
@@ -48,5 +50,19 @@ authAtom.onChange(auth => {
   });
   zeroAtom.value = z;
 });
+
+export function logout() {
+  console.log('Logging out, clearing JWT and auth state.');
+  clearJwt();
+  authAtom.value = undefined; // Trigger auth change
+}
+
+export function refreshAuth(): LoginState {
+  const encodedJwt = getRawJwt();
+  const decodedJwt = getJwt();
+  const newAuth = encodedJwt && decodedJwt ? (decodedJwt as LoginState) : undefined;
+  authAtom.value = newAuth!;
+  return newAuth!;
+}
 
 export { authAtom as authRef, zeroAtom as zeroRef };

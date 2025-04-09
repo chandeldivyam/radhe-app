@@ -4,7 +4,7 @@ import type { LoginState } from '../sync/zero-setup';
 
 export type LoginContext = {
   loginState: LoginState | undefined;
-  // Add logout function here later if needed
+  logout: () => void;
 };
 
 export const loginContext = createContext<LoginContext | undefined>(undefined);

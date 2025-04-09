@@ -1,4 +1,4 @@
-// frontend/src/auth.ts
+// frontend/src/lib/jwt.ts
 import { decodeJwt } from 'jose';
 import Cookies from 'js-cookie';
 
