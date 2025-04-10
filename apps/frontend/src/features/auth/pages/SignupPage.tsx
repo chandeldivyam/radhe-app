@@ -97,7 +97,7 @@ export function SignupPage() {
         </CardContent>
          <CardFooter className="text-sm justify-center">
            Already have an account?
-            <Link to="/login" className="underline">Log in</Link>
+            <Link to="/login" className="underline ml-1">Log in</Link>
          </CardFooter>
       </Card>
     </div>

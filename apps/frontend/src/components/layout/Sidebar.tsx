@@ -1,5 +1,5 @@
 // ./apps/frontend/src/components/layout/Sidebar.tsx
-import { NavLink } from "react-router-dom";
+import { NavLink, useNavigate } from "react-router-dom";
 import {
   Home,
   Bell,
@@ -35,6 +35,7 @@ const navItems: NavItem[] = [
 
 export function Sidebar() {
   const { logout } = useLogin();
+  const navigate = useNavigate();
 
   // Active and inactive styles
   const activeClassName = "bg-sidebar-accent text-sidebar-accent-foreground";
@@ -55,7 +56,10 @@ export function Sidebar() {
             {({ isActive }) => (
               <>
                 <div className={cn("p-2 rounded-md", isActive ? activeClassName : inactiveClassName)}>
-                  <item.icon className="h-6 w-6" />
+                  <item.icon
+                    className="h-6 w-6 transition-transform duration-150 group-hover:scale-110"
+                    fill={isActive ? "currentColor" : "none"}
+                  />
                 </div>
                 <span className="mt-1 text-xs text-sidebar-foreground">{item.label}</span>
               </>
@@ -70,17 +74,17 @@ export function Sidebar() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="flex items-center justify-center rounded-md p-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground transition-colors"
+              className="group flex items-center justify-center rounded-md p-1 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground text-sidebar-foreground transition-colors"
             >
-              <UserRound className="h-6 w-6" />
+              <UserRound className="h-6 w-6 transition-transform duration-150 group-hover:scale-110" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56 ml-2 mb-2" side="right" align="start">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer">
+            <DropdownMenuItem className="cursor-pointer" onClick={() => navigate('/settings')}>
               <Settings className="mr-2 h-4 w-4" />
-              <span>Profile</span>
+              <span>Settings</span>
             </DropdownMenuItem>
             <DropdownMenuItem className="cursor-pointer" onSelect={() => logout()}>
               <LogOut className="mr-2 h-4 w-4" />

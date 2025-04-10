@@ -25,11 +25,15 @@ export const router = createBrowserRouter([
         children: [
           {
             index: true, // Matches '/' path when inside MainLayout
-            element: <UserListPage />,
+            element: <div>Home Page</div>,
           },
           {
             path: 'activity',
             element: <div>Activity Page</div>,
+          },
+          {
+            path: 'settings',
+            element: <UserListPage />,
           },
         ]
       },
