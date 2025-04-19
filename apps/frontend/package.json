@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.0.1",
     "@radhe/zero-shared": "workspace:*",
     "@radix-ui/react-avatar": "^1.1.4",
@@ -25,6 +28,7 @@
     "@tailwindcss/vite": "^4.1.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "fractional-indexing": "^3.2.0",
     "jose": "^6.0.10",
     "js-cookie": "^3.0.5",
     "lucide-react": "^0.487.0",

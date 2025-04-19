@@ -1,42 +1,47 @@
 // ./apps/frontend/src/features/notes/components/AddNoteButton.tsx
 import { useState } from "react";
-import { Plus } from "lucide-react";
-import { v4 as uuidv4 } from 'uuid'; // Need to install uuid
+import { Plus, Loader2 } from "lucide-react"; // Added Loader2
+import { v4 as uuidv4 } from 'uuid';
 import { Button } from "@/components/ui/button";
 import { useZero } from "@/features/sync/use-zero";
 import { toast } from "sonner";
-import { cn } from "@/lib/utils";
 
-export function AddNoteButton({ position }: { position: number }) {
+// --- Updated Props ---
+interface AddNoteButtonProps {
+  getNextSortKey: () => string; // Function to get the next sort key
+}
+
+export function AddNoteButton({ getNextSortKey }: AddNoteButtonProps) {
   const z = useZero();
   const [isCreating, setIsCreating] = useState(false);
 
   const handleAddNote = async () => {
-    if (!z) {
-      toast.error("Sync engine not ready.");
+    if (!z || isCreating) { // Prevent double-clicks
+      toast.error("Sync engine not ready or already creating.");
       return;
     }
     setIsCreating(true);
     try {
       const newNoteId = uuidv4();
-      // Simple sequential addition for now.
-      // Later, position/path/depth might need calculation based on context.
+      const newSortKey = getNextSortKey(); // Calculate the sort key
+
+      console.log("Adding top-level note with sortKey:", newSortKey);
+
+      // --- Call updated mutator ---
       await z.mutate.note.insert({
         noteId: newNoteId,
-        title: "Untitled Note", // Start with an empty title
-        content: "", // Start with empty content
-        parentId: null, // Top-level note for now
-        position: position, // Default position, adjust later if needed
-        path: null, // Default path, adjust later if needed
-        depth: 0, // Default depth, adjust later if needed
+        title: "Untitled Note", // Or "" if you prefer truly empty
+        content: "",
+        parentId: null, // Explicitly null for top-level
+        sortKey: newSortKey, // Pass the generated sort key
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
+
       toast.success("Note created");
-      // Optionally: navigate to the new note or select it
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to create note:", error);
-      toast.error("Failed to create note. See console for details.");
+      toast.error(`Failed to create note: ${error.message || 'Unknown error'}`);
     } finally {
       setIsCreating(false);
     }
@@ -49,8 +54,12 @@ export function AddNoteButton({ position }: { position: number }) {
       onClick={handleAddNote}
       disabled={isCreating || !z}
       aria-label="Add new note"
+      className="hover:scale-110 hover:bg-muted rounded-md" // Moved style from NoteList
     >
-      <Plus className={cn("h-5 w-5", isCreating && "animate-spin")} />
+      {isCreating
+        ? <Loader2 className="h-5 w-5 animate-spin" />
+        : <Plus className="h-5 w-5" />
+      }
     </Button>
   );
 }

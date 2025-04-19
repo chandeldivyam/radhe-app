@@ -1,5 +1,5 @@
-import { pgTable, text, boolean, timestamp, uuid, integer, index as pgIndex, foreignKey } from 'drizzle-orm/pg-core'; // Added integer and pgIndex
-import { relations, sql } from 'drizzle-orm'; // Added sql if you plan db-level onUpdate
+import { pgTable, text, boolean, timestamp, uuid, index as pgIndex, foreignKey } from 'drizzle-orm/pg-core';
+import { relations, sql } from 'drizzle-orm';
 
 // Organization schema (Existing)
 export const organizations = pgTable('organization', {
@@ -33,11 +33,7 @@ export const notes = pgTable('note', {
 
   // Hierarchical structure
   parentId: uuid('parent_id'),
-  path: text('path'), // Materialized path, index defined below
-  depth: integer('depth').default(0), // Matches Integer with default
-  childrenCount: integer('children_count').default(0), // Matches Integer with default
-  position: integer('position').notNull().default(0), // Matches Integer, non-nullable with default
-
+  sortKey: text('sort_key'),
   // Metadata & Foreign Keys
   organizationId: uuid('organization_id')
     .notNull() // Assuming organization is required for a note
@@ -54,7 +50,7 @@ export const notes = pgTable('note', {
   // Define Indexes explicitly requested in SQLAlchemy schema
   return {
     titleIdx: pgIndex('note_title_idx').on(table.title),
-    pathIdx: pgIndex('note_path_idx').on(table.path),
+    sortKeyIdx: pgIndex('note_sort_key_idx').on(table.sortKey),
     orgIdx: pgIndex('note_organization_id_idx').on(table.organizationId),
     parentReference: foreignKey({
       columns: [table.parentId],

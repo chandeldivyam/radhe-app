@@ -13,9 +13,7 @@ export type CreateNoteArgs = {
     title: string;
     content: string;
     parentId: string | null;
-    position: number;
-    path: string | null;
-    depth: number;
+    sortKey: string;
     createdAt: number;
     updatedAt: number;
 }
@@ -33,11 +31,11 @@ export function createMutators(auth: AuthData | undefined) {
             }
         },
         note: {
-            async insert(tx: Transaction<typeof schema, unknown>, {noteId, title, content, parentId, position, path, depth, createdAt, updatedAt}: CreateNoteArgs) {
+            async insert(tx: Transaction<typeof schema, unknown>, {noteId, title, content, parentId, sortKey, createdAt, updatedAt}: CreateNoteArgs) {
                 assertIsLoggedIn(auth);
                 const userId = auth.sub;
                 const organizationId = auth.organizationId;
-                const newNote = { noteId, title, content, parentId, position, path, depth, organizationId, createdBy: userId, createdAt, updatedAt };
+                const newNote = { noteId, title, content, parentId, sortKey, organizationId, createdBy: userId, createdAt, updatedAt };
                 await tx.mutate.note.insert(newNote);
             },
             async update(tx: Transaction<typeof schema, unknown>, change: UpdateValue<typeof schema.tables.note> & {modified: number}) {

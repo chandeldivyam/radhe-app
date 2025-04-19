@@ -4,9 +4,7 @@ export interface Note {
     content: string;
     suggestionContent: string | null;
     parentId: string | null;
-    position: number | null;
-    path: string | null;
-    depth: number | null;
+    sortKey: string | null;
     createdAt: number;
     updatedAt: number;
 }

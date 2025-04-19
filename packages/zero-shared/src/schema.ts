@@ -33,11 +33,7 @@ export const note = table('note')
 
     // Hierarchical structure
     parentId: string().from('parent_id').optional(), // Nullable UUID (foreign key)
-    path: string().optional(), // Nullable text
-    depth: number().optional(), // Nullable integer (default 0)
-    childrenCount: number().from('children_count').optional(), // Nullable integer (default 0)
-    position: number(), // Not null integer (default 0)
-
+    sortKey: string().from('sort_key'),
     // Metadata & Foreign Keys
     organizationId: string().from('organization_id'), // Not null UUID (foreign key)
     createdBy: string().from('created_by'), // Not null UUID (foreign key)
