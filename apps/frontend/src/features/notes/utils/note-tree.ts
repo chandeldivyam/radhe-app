@@ -2,29 +2,31 @@
 import type { Note } from "@/features/notes/types/note";
 import * as FractionalIndexing from 'fractional-indexing';
 
-// --- Updated Type ---
-export type NoteWithChildren = Omit<Note, 'position' | 'path' | 'depth'> & { // Use Omit for clarity
+// --- Types ---
+// NoteWithChildren now explicitly includes the potential children array
+export type NoteWithChildren = Note & {
     children: NoteWithChildren[];
 };
 
+// NoteTreeData structure remains the same
 export type NoteTreeData = {
-    tree: NoteWithChildren[]; // Root notes with nested children
-    notesById: Map<string, NoteWithChildren>; // Quick lookup
-    childrenByParentId: Map<string | null, NoteWithChildren[]>; // Quick child lookup, MUST BE SORTED BY sortKey
+    tree: NoteWithChildren[]; // Root level notes, sorted
+    notesById: Map<string, NoteWithChildren>; // Map for quick lookup
+    childrenByParentId: Map<string | null, NoteWithChildren[]>; // Map of parentId -> sorted children list
 };
 
-// --- Core Fractional Indexing Helper ---
-// Generates a key between two existing keys (or null for endpoints)
+// --- Fractional Indexing Helper ---
 export function generateSortKey(before: string | null, after: string | null): string {
-    // Ensure integer check passes if needed (it usually does by default)
     try {
+        // Ensure integer check passes if needed (often not necessary with default usage)
+        // FractionalIndexing.validateInteger = () => {};
         return FractionalIndexing.generateKeyBetween(before, after);
     } catch (e) {
-        // Handle potential errors, e.g., key space exhaustion (unlikely)
-        console.error("Error generating fractional index key:", e);
-        // Fallback or rebalancing might be needed in extreme cases
-        // For now, let's throw to indicate a critical issue
-        throw new Error("Could not generate sort key.");
+        console.error("Error generating fractional index key between:", before, "and", after, e);
+        // In extremely rare cases (many keys generated between the same two points without rebalancing),
+        // this could fail. A robust system might need rebalancing logic.
+        // For now, throw to indicate a critical failure.
+        throw new Error("Could not generate sort key. Possible index exhaustion.");
     }
 }
 
@@ -32,90 +34,136 @@ export function generateSortKey(before: string | null, after: string | null): st
 export function buildNoteTree(notes: Note[] | undefined | null): NoteTreeData {
     const notesById = new Map<string, NoteWithChildren>();
     const childrenByParentId = new Map<string | null, NoteWithChildren[]>();
-    const tree: NoteWithChildren[] = [];
+    const tree: NoteWithChildren[] = []; // Root notes
 
-    if (!notes) {
+    if (!notes || notes.length === 0) {
+        console.log("buildNoteTree: No notes provided.");
         return { tree, notesById, childrenByParentId };
     }
 
-    // Pass 1: Create map and initialize children arrays (unsorted initially)
+    // Pass 1: Create map and initialize children arrays, validating sortKey
     for (const note of notes) {
+        // CRITICAL: Ensure sortKey exists. If not, the sorting logic breaks.
+        if (note.sortKey === null || note.sortKey === undefined || note.sortKey === '') {
+            console.error(`Note ${note.noteId} ("${note.title}") has invalid sortKey: "${note.sortKey}". This WILL cause sorting/DND issues. Assigning fallback WILL likely break order.`);
+            // Assigning a fallback here is dangerous as it breaks intended order.
+            // It's better to ensure data integrity upstream or filter out such notes.
+            // For robustness in rendering *something*, we might proceed, but expect problems.
+            // const fallbackSortKey = `ERR_${Date.now()}_${Math.random()}`; // Highly unstable
+            // note = { ...note, sortKey: fallbackSortKey }; // Mutating input is bad, create copy if needed
+        }
         const noteWithChildren: NoteWithChildren = { ...note, children: [] };
         notesById.set(note.noteId, noteWithChildren);
-        // Don't initialize map here, do it dynamically below
+        // Initialize children array for *every* note, even if it won't have children,
+        // simplifies lookup later (though map default is undefined)
+         if (!childrenByParentId.has(note.noteId)) {
+             childrenByParentId.set(note.noteId, []);
+         }
     }
+     // Initialize for root notes explicitly
+     if (!childrenByParentId.has(null)) {
+         childrenByParentId.set(null, []);
+     }
 
-    // Pass 2: Populate children arrays and identify roots
+
+    // Pass 2: Populate children arrays based on parentId
     for (const note of notesById.values()) {
-        const parentId = note.parentId ?? null;
+        const parentId = note.parentId ?? null; // Use null for root explicitly
 
-        if (!childrenByParentId.has(parentId)) {
-            childrenByParentId.set(parentId, []);
+        const childrenList = childrenByParentId.get(parentId);
+        if (childrenList) {
+            // Should always find the list due to initialization in Pass 1 / explicit root init
+            childrenList.push(note);
+        } else {
+             // This case should ideally not happen if initialized correctly
+             console.warn(`Could not find children list for parentId: ${parentId} while processing note ${note.noteId}. Initializing now.`);
+             childrenByParentId.set(parentId, [note]);
         }
-        childrenByParentId.get(parentId)!.push(note); // Add to parent's list
+    }
 
-        if (parentId === null) {
-            tree.push(note); // Add root notes
+    // Pass 3: Sort all children arrays (including the root list) by sortKey
+    const sortNodes = (a: NoteWithChildren, b: NoteWithChildren): number => {
+        // Handle potential invalid sortKeys defensively during sort, though errors logged earlier
+        const keyA = a.sortKey ?? '';
+        const keyB = b.sortKey ?? '';
+        if (keyA < keyB) return -1;
+        if (keyA > keyB) return 1;
+        // Fallback sort for identical keys (should be rare with fractional indexing)
+        // Use createdAt for stability if sortKeys are identical or invalid
+        return (a.createdAt ?? 0) - (b.createdAt ?? 0);
+    };
+
+    for (const [parentId, childrenList] of childrenByParentId.entries()) {
+        childrenList.sort(sortNodes);
+        // console.log(`Sorted children for parent ${parentId === null ? 'root' : parentId}:`, childrenList.map(n => ({id: n.noteId, key: n.sortKey})));
+    }
+
+    // Pass 4: Build the final tree structure by assigning sorted children to parents
+    // and identify the root nodes.
+    for (const note of notesById.values()) {
+        const sortedChildren = childrenByParentId.get(note.noteId) ?? [];
+        note.children = sortedChildren; // Assign the sorted children list back to the note object
+
+        if (note.parentId === null) {
+            // This note is a root note, add it to the main tree list
+            // But the root list itself is already sorted in childrenByParentId.get(null)
+            // So, just retrieve the already sorted root list at the end.
         }
     }
 
-    // Pass 3: Sort all children arrays and the root tree by sortKey
-    const sortNodes = (nodes: NoteWithChildren[]) => {
-        nodes.sort((a, b) => {
-            if (a.sortKey && b.sortKey && a.sortKey < b.sortKey) return -1;
-            if (a.sortKey && b.sortKey && a.sortKey > b.sortKey) return 1;
-            return 0;
-        });
-    };
-
-    sortNodes(tree); // Sort root notes
-    for (const childrenList of childrenByParentId.values()) {
-        sortNodes(childrenList); // Sort children for each parent
-        // Assign the sorted children back to the parent nodes in the notesById map
-        if (childrenList.length > 0) {
-            const parentId = childrenList[0].parentId;
-            if (parentId) {
-                const parentNode = notesById.get(parentId);
-                if (parentNode) {
-                    parentNode.children = childrenList; // Ensure parent node object has sorted children
-                }
-            }
-        }
-    }
-    // Rebuild tree structure recursively now that children are sorted
-    const assignSortedChildrenRecursive = (nodes: NoteWithChildren[]) => {
-        for (const node of nodes) {
-            const sortedChildren = childrenByParentId.get(node.noteId) ?? [];
-            node.children = sortedChildren; // Assign the correctly sorted children
-            if (node.children.length > 0) {
-                assignSortedChildrenRecursive(node.children);
-            }
-        }
-    };
-    assignSortedChildrenRecursive(tree);
+    // The final root tree is the sorted list associated with the null parentId
+    const sortedRootTree = childrenByParentId.get(null) ?? [];
+    console.log(`buildNoteTree: Built tree with ${sortedRootTree.length} root nodes.`);
 
 
-    return { tree, notesById, childrenByParentId };
+    return { tree: sortedRootTree, notesById, childrenByParentId };
 }
 
+
+// --- Key Generation Helpers ---
+
+// Get sort key for adding a NEW item to the END of a list (siblings)
 export function getSortKeyForNewItem(
     parentId: string | null,
-    childrenMap: Map<string | null, NoteWithChildren[]>
+    childrenMap: Map<string | null, NoteWithChildren[]> // Expects the map containing SORTED children lists
 ): string {
-    const siblings = childrenMap.get(parentId ?? null) ?? [];
+    const siblings = childrenMap.get(parentId ?? null) ?? []; // Default to empty array
     const lastSibling = siblings.length > 0 ? siblings[siblings.length - 1] : null;
+
+    // Key of the last item, or null if list is empty/first item
     const prevKey = lastSibling ? lastSibling.sortKey : null;
-    const nextKey = null;
+    const nextKey = null; // No item after the new last item
+
+    if (lastSibling && (prevKey === null || prevKey === undefined)) {
+        console.warn(`getSortKeyForNewItem: Last sibling ${lastSibling.noteId} exists but has invalid sortKey "${prevKey}". Key generation might be inaccurate.`);
+    }
 
     return generateSortKey(prevKey, nextKey);
 }
 
-// Helper to get sort key between two items (needed for drag-and-drop later)
+// Get sort key for inserting an item BETWEEN two existing items (or at start/end)
 export function getSortKeyBetweenItems(
-    prevNote: NoteWithChildren | null,
-    nextNote: NoteWithChildren | null
+    prevNote: NoteWithChildren | null | undefined, // Allow undefined for safety
+    nextNote: NoteWithChildren | null | undefined
 ): string {
     const prevKey = prevNote ? prevNote.sortKey : null;
     const nextKey = nextNote ? nextNote.sortKey : null;
+
+     if (prevNote && (prevKey === null || prevKey === undefined)) {
+        console.warn(`getSortKeyBetweenItems: Previous note ${prevNote.noteId} has invalid sortKey "${prevKey}". Key generation might be inaccurate.`);
+    }
+     if (nextNote && (nextKey === null || nextKey === undefined)) {
+         console.warn(`getSortKeyBetweenItems: Next note ${nextNote.noteId} has invalid sortKey "${nextKey}". Key generation might be inaccurate.`);
+    }
+
+    // Handle potential edge case where keys might be identical or invalid order
+    // This should NOT happen if data is consistent and sorting is correct.
+    if (prevKey !== null && nextKey !== null && prevKey >= nextKey) {
+         console.error(`Cannot generate key: prevKey "${prevKey}" (Note ${prevNote?.noteId}) is not strictly less than nextKey "${nextKey}" (Note ${nextNote?.noteId}). This indicates a data inconsistency or sorting error.`);
+         // Throwing is safer to indicate a state inconsistency.
+         throw new Error("Invalid sort key order for generation. Cannot place item.");
+    }
+
     return generateSortKey(prevKey, nextKey);
 }
+

@@ -77,7 +77,7 @@ export function NoteViewer() {
 
     try {
       console.log('Executing z.mutate.note.update with payload:', payload);
-      const mutation = z.mutate.note.update(payload);
+      const mutation = z.mutate.note.update({...payload, updatedAt: Date.now()});
       await mutation;
 
       toast.success("Note saved successfully!");

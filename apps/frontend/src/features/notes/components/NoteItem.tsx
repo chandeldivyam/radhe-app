@@ -1,27 +1,27 @@
 // ./apps/frontend/src/features/notes/components/NoteItem.tsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, ChevronDown, Plus, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Plus, Loader2, GripVertical } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useZero } from '@/features/sync/use-zero';
 import { v4 as uuidv4 } from 'uuid';
-// Import the specific helper needed
 import { getSortKeyForNewItem } from '../utils/note-tree';
 import type { NoteWithChildren, NoteTreeData } from '../utils/note-tree';
 
-// --- Updated Props ---
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+
 interface NoteItemProps {
   note: NoteWithChildren;
   level: number;
   expandedNoteIds: Record<string, boolean>;
   onToggleExpand: (noteId: string) => void;
   activeNoteId?: string;
-  // Pass the full maps for accurate checks and key generation
   notesById: NoteTreeData['notesById'];
-  childrenByParentId: NoteTreeData['childrenByParentId']; // This map MUST be sorted
-  // Removed calculateNextPosition prop
+  childrenByParentId: NoteTreeData['childrenByParentId'];
+  // isOverlay?: boolean; // Optional prop if we need slightly different rendering in DragOverlay
 }
 
 export function NoteItem({
@@ -30,51 +30,79 @@ export function NoteItem({
   expandedNoteIds,
   onToggleExpand,
   activeNoteId,
-  notesById,        // Receive map
-  childrenByParentId // Receive map
+  notesById,
+  childrenByParentId,
+  // isOverlay = false, // Default value
 }: NoteItemProps) {
   const navigate = useNavigate();
   const z = useZero();
   const [isAddingChild, setIsAddingChild] = useState(false);
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging, // State from the hook indicating if *this* item is the one being dragged
+  } = useSortable({ id: note.noteId, disabled: isAddingChild }); // Disable sorting if adding child
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition: transition, // Apply transition only when not dragging for smooth drop
+    // Opacity is handled below based on isDragging
+    // zIndex: isDragging ? 10 : 'auto', // Ensure dragging item is visually on top if needed
+  };
+
   const isExpanded = !!expandedNoteIds[note.noteId];
   const isActive = note.noteId === activeNoteId;
-
-  // --- Use the passed, sorted map to check for children ---
-  // The `note.children` array from buildNoteTree should also be reliable now
-  const actualChildren = note.children ?? []; // Use pre-computed children if available
-  // Or fallback to map lookup if note object might be stale (less likely now)
-  // const actualChildren = childrenByParentId.get(note.noteId) ?? [];
+  const actualChildren = note.children ?? []; // Use the children from the NoteWithChildren prop
   const hasChildren = actualChildren.length > 0;
 
-  const handleNavigate = () => {
-    navigate(`/notes/${note.noteId}`);
+  const handleNavigate = (e: React.MouseEvent) => {
+     // Prevent navigation if the click target is the drag handle or buttons
+    if (isDragging || (e.target as HTMLElement).closest('[data-dnd-handle="true"]')) {
+      e.stopPropagation();
+      e.preventDefault();
+      return;
+    }
+    if (!isEditingDescendant(e.target as HTMLElement)) { // Prevent nav if clicking input/textarea
+        navigate(`/notes/${note.noteId}`);
+    }
+  };
+
+  // Helper to prevent navigation when clicking on interactive elements within the item
+  const isEditingDescendant = (target: HTMLElement | null): boolean => {
+    if (!target) return false;
+    return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.closest('button') !== null;
   };
 
   const handleToggle = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (hasChildren) {
+    if (hasChildren && !isDragging) { // Prevent toggle while dragging
       onToggleExpand(note.noteId);
     }
   };
 
   const handleAddChild = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!z || isAddingChild) return;
+    if (!z || isAddingChild || isDragging) return; // Prevent adding if dragging
 
     setIsAddingChild(true);
     try {
       const parentId = note.noteId;
-      // --- Calculate next sort key using the helper ---
-      const newSortKey = getSortKeyForNewItem(parentId, childrenByParentId);
+      // Get the latest children list for the parent to calculate the correct sort key
+      const currentChildren = childrenByParentId.get(parentId) ?? [];
+      const tempMap = new Map<string | null, NoteWithChildren[]>().set(parentId, currentChildren);
+      const newSortKey = getSortKeyForNewItem(parentId, tempMap); // Use helper with current state
+
       const newNoteId = uuidv4();
 
       console.log(`Adding child note under ${parentId} with sortKey: ${newSortKey}`);
 
-      // --- Call updated mutator ---
       await z.mutate.note.insert({
         noteId: newNoteId,
-        title: "Untitled Note", // Or ""
+        title: "Untitled Child",
         content: "",
         parentId: parentId,
         sortKey: newSortKey,
@@ -84,97 +112,99 @@ export function NoteItem({
 
       toast.success("Child note created");
 
-      // Expand the parent if it wasn't already
+      // Ensure parent is expanded after adding a child
       if (!isExpanded) {
-         onToggleExpand(parentId);
+        onToggleExpand(parentId);
       }
 
-      // Navigate after a short delay
+      // Optional: Navigate after a short delay to allow state update
       setTimeout(() => navigate(`/notes/${newNoteId}`), 50);
 
     } catch (error: any) {
-        console.error("Failed to add child note:", error);
-        toast.error(`Failed to add child: ${error.message || 'Unknown error'}`);
+      console.error("Failed to add child note:", error);
+      toast.error(`Failed to add child: ${error.message || 'Unknown error'}`);
     } finally {
       setIsAddingChild(false);
     }
   };
 
   return (
-    <>
-      {/* Note Row */}
-      <div
-        className={cn(
-          "group flex items-center justify-between w-full text-left text-sm font-medium rounded-md cursor-pointer",
-           "pr-1", // Add slight padding right for the button
-          isActive
-            ? "bg-primary text-primary-foreground"
-            : "hover:bg-accent hover:text-accent-foreground",
-        )}
-        style={{ paddingLeft: `${level * 1.25 + 0.75}rem` }}
-        onClick={handleNavigate}
-      >
-        {/* Expand/Collapse Toggle */}
-        <Button
-          onClick={handleToggle}
-          variant="ghost" // Use ghost for consistency?
-          size="icon"
-          className={cn(
-            "flex-shrink-0 mr-1 rounded-sm h-6 w-6 p-0", // Consistent size
-            !hasChildren && "invisible opacity-0", // Hide if no children
-            isActive ? "hover:bg-primary/80" : "hover:bg-muted"
-          )}
-          aria-label={isExpanded ? 'Collapse' : 'Expand'}
-          aria-expanded={isExpanded}
-          disabled={!hasChildren} // Disable only if no children
-        >
-          {hasChildren ? (
-            isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
-          ) : (
-            <span className="inline-block h-4 w-4"></span> // Placeholder
-          )}
-        </Button>
-
-        {/* Note Title */}
-        <span className="truncate flex-grow py-1 mx-1"> {/* Adjust padding/margin */}
-          {note.title || "Untitled Note"}
-        </span>
-
-        {/* Add Child Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleAddChild}
-          className={cn(
-            "flex-shrink-0 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity",
-             isActive ? "text-primary-foreground hover:bg-primary/80" : "text-muted-foreground hover:bg-muted"
-          )}
-          disabled={isAddingChild || !z}
-          aria-label="Add child note"
-        >
-          {isAddingChild ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-        </Button>
-      </div>
-
-      {/* Render Children Recursively */}
-      {/* Children are now pre-sorted by buildNoteTree */}
-      {hasChildren && isExpanded && (
-        <div className="mt-1 space-y-1">
-          {actualChildren.map((childNote) => (
-              <NoteItem
-                key={childNote.noteId}
-                note={childNote}
-                level={level + 1}
-                expandedNoteIds={expandedNoteIds}
-                onToggleExpand={onToggleExpand}
-                activeNoteId={activeNoteId}
-                // Pass the maps down for the next level
-                notesById={notesById}
-                childrenByParentId={childrenByParentId}
-              />
-            ))}
-        </div>
+    // Note Row - Apply DND ref, style, and conditional classes
+    <div
+      ref={setNodeRef} // Connect DND ref
+      style={{ ...style, paddingLeft: `${level * 1.25 + 0.75}rem` }} // Apply DND transform/transition & indent
+      className={cn(
+        "group flex items-center justify-between w-full text-left text-sm font-medium rounded-md cursor-pointer relative",
+        "pr-1", // Padding for buttons on the right
+        // Apply styles based on active state *only if not dragging*
+        isActive && !isDragging ? "bg-primary text-primary-foreground" : "hover:bg-accent hover:text-accent-foreground",
+        // Style for the placeholder left behind when dragging
+        isDragging && "opacity-50 bg-muted",
+        // isOverlay && "shadow-lg bg-background z-10", // Style for the item in DragOverlay if needed
       )}
-    </>
+      onClick={handleNavigate}
+      // {...attributes} // Spread DND attributes only if the whole item is draggable (no handle)
+      // {...listeners} // Spread DND listeners only if the whole item is draggable (no handle)
+    >
+      {/* Drag Handle */}
+      <button
+        {...attributes} // Apply attributes here for dragging
+        {...listeners} // Apply listeners here to make the handle draggable
+        data-dnd-handle="true" // Custom attribute to identify handle clicks
+        className={cn(
+          "flex-shrink-0 -ml-1 mr-1 p-1 cursor-grab touch-none rounded-sm",
+          "opacity-0 group-hover:opacity-50 focus-visible:opacity-100", // Show handle on hover/focus
+           isActive ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground/70 hover:text-foreground",
+           isDragging ? "cursor-grabbing" : "cursor-grab"
+        )}
+        onClick={(e) => e.stopPropagation()} // Prevent navigation when clicking handle
+        aria-label="Drag to reorder note"
+        aria-pressed={isDragging} // Accessibility for drag state
+        disabled={isAddingChild} // Disable handle if adding child
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+
+      {/* Expand/Collapse Toggle */}
+      <Button
+        onClick={handleToggle}
+        variant="ghost"
+        size="icon"
+        className={cn(
+          "flex-shrink-0 mr-1 rounded-sm h-6 w-6 p-0",
+          !hasChildren && "invisible opacity-0 pointer-events-none", // Hide & disable if no children
+          isActive ? "hover:bg-primary/80" : "hover:bg-muted"
+        )}
+        aria-label={isExpanded ? 'Collapse note children' : 'Expand note children'}
+        aria-expanded={isExpanded}
+        disabled={!hasChildren || isDragging || isAddingChild} // Disable interactions while dragging or adding
+      >
+        {hasChildren ? (
+          isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+        ) : (
+          <span className="inline-block h-4 w-4"></span> // Placeholder for alignment
+        )}
+      </Button>
+
+      {/* Note Title */}
+      <span className="truncate flex-grow py-1 mx-1">
+        {note.title || "Untitled Note"}
+      </span>
+
+      {/* Add Child Button */}
+      <Button
+        variant="ghost"
+        size="icon"
+        onClick={handleAddChild}
+        className={cn(
+          "flex-shrink-0 h-6 w-6 p-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity",
+          isActive ? "text-primary-foreground hover:bg-primary/80" : "text-muted-foreground hover:bg-muted"
+        )}
+        disabled={isAddingChild || !z || isDragging} // Disable interactions while dragging or already adding
+        aria-label="Add child note"
+      >
+        {isAddingChild ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+      </Button>
+    </div>
   );
 }

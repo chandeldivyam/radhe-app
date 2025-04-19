@@ -18,6 +18,15 @@ export type CreateNoteArgs = {
     updatedAt: number;
 }
 
+export type UpdateNoteArgs = {
+    noteId: string;
+    title?: string | null;
+    content?: string;
+    parentId?: string | null;
+    sortKey?: string;
+    updatedAt?: number;
+}
+
 export function createMutators(auth: AuthData | undefined) {
     return {
         user: {
@@ -38,9 +47,23 @@ export function createMutators(auth: AuthData | undefined) {
                 const newNote = { noteId, title, content, parentId, sortKey, organizationId, createdBy: userId, createdAt, updatedAt };
                 await tx.mutate.note.insert(newNote);
             },
-            async update(tx: Transaction<typeof schema, unknown>, change: UpdateValue<typeof schema.tables.note> & {modified: number}) {
+            async update(tx: Transaction<typeof schema, unknown>, changes: UpdateNoteArgs) {
                 assertIsLoggedIn(auth);
-                await tx.mutate.note.update(change);
+
+                // 1. Fetch the note to verify ownership (important for security)
+                const existingNote = await tx.query.note.where('noteId', changes.noteId).one().run();
+                if (!existingNote || existingNote.organizationId !== auth.organizationId) {
+                    throw new Error('Note not found or permission denied.');
+                }
+
+                // 2. Prepare the update payload, always including updatedAt
+                const updatePayload: UpdateValue<typeof schema.tables.note> = {
+                    ...changes, // Spread the provided changes (noteId, title, content, parentId, sortKey)
+                    updatedAt: Date.now(), // Always update the timestamp
+                };
+
+                // 3. Apply the update
+                await tx.mutate.note.update(updatePayload);
             },
             async delete(tx: Transaction<typeof schema, unknown>, {noteId}: {noteId: string}) {
                 assertIsLoggedIn(auth);
