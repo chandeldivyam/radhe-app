@@ -1,300 +1,186 @@
 // ./apps/frontend/src/features/notes/components/NoteList.tsx
-import React, { useState, useMemo, useCallback } from "react";
-import { useZero } from "@/features/sync/use-zero";
-import { useQuery } from "@rocicorp/zero/react";
-import { useParams } from "react-router-dom";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import React, { useMemo, useCallback } from "react";
+import { useNavigate, useParams } from "react-router-dom"; // Added useNavigate
+import { ScrollArea } from '../../../components/ui/scroll-area'; // Corrected path
 import { AddNoteButton } from "./AddNoteButton";
 import { NoteItem } from "./NoteItem";
-import { buildNoteTree, getSortKeyForNewItem, getSortKeyBetweenItems } from "../utils/note-tree";
-import type { NoteTreeData, NoteWithChildren } from "../utils/note-tree";
-import { toast } from "sonner";
+import { getSortKeyForNewItem } from "../utils/note-tree";
+import type { NoteWithChildren } from "../utils/note-tree";
 import { Loader2 } from "lucide-react";
-import { Note } from "../types/note"; // Import Note type
+import { toast } from "sonner"; // Import toast
+import { cn } from "../../../lib/utils"; // Import cn
+
+// --- Hook Imports ---
+import { useNoteTreeData } from "../hooks/useNoteTreeData";
+import { useNoteListState } from "../hooks/useNoteListState";
+import { useNoteDragAndDrop } from "../hooks/useNoteDragAndDrop";
 
 // --- DND Imports ---
 import {
   DndContext,
   closestCenter,
-  PointerSensor,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-  DragStartEvent,
-  DragCancelEvent,
-  DragOverlay, // Import DragOverlay
-  UniqueIdentifier,
+  DragOverlay,
   MeasuringStrategy,
 } from '@dnd-kit/core';
 import {
   SortableContext,
   verticalListSortingStrategy,
-  arrayMove,
-  sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable';
-// --- End DND Imports ---
 
+// --- Shadcn UI Imports ---
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../../../components/ui/alert-dialog'; // Corrected path
 
 export function NoteList() {
-  const z = useZero();
   const params = useParams<{ noteId?: string }>();
+  const navigate = useNavigate(); // Add useNavigate
   const activeNoteIdParam = params.noteId;
 
-  const notesQuery = z?.query.note;
-  const notesQueryResult = useQuery(notesQuery);
-  const allNotes: Note[] | undefined = notesQueryResult?.[0];
+  // --- Use Custom Hooks ---
+  const {
+    tree: rootNotes,
+    notesById,
+    childrenByParentId,
+    allNotes,
+    isLoading,
+    z // Get z client from data hook
+  } = useNoteTreeData();
 
-  const [expandedNoteIds, setExpandedNoteIds] = useState<Record<string, boolean>>({});
-  const [isMovingNote, setIsMovingNote] = useState(false);
-  const [draggingNoteId, setDraggingNoteId] = useState<UniqueIdentifier | null>(null);
+  const {
+    expandedNoteIds,
+    isMovingNote, // DND saving state
+    draggingNoteId,
+    handleToggleExpand,
+    setIsMovingNote,
+    setDraggingNoteId,
+    // --- Deletion State & Handlers ---
+    noteToDeleteId,     // ID of note pending delete confirmation
+    isDeletingNote,     // Loading state for the delete mutation
+    requestDeleteNote,  // Opens the confirmation dialog
+    cancelDeleteNote,   // Closes the dialog without deleting
+    confirmDeleteNote,  // User confirmed, triggers actual delete
+    finishDeleteNote,   // Resets delete state after mutation
+  } = useNoteListState();
 
-  // Process the flat list into a sorted tree structure
-  const noteTreeData: NoteTreeData = useMemo(() => {
-    console.log("Building note tree...");
-    return buildNoteTree(allNotes);
-  }, [allNotes]);
-
-  const { tree: rootNotes, childrenByParentId, notesById } = noteTreeData;
-
-  // --- *** NEW: Generate the ordered list of rendered IDs *** ---
+  // --- Generate the ordered list of rendered IDs ---
   const renderedNoteIds = useMemo(() => {
     const ids: string[] = [];
     const collectIds = (notes: NoteWithChildren[]) => {
       for (const note of notes) {
         ids.push(note.noteId);
-        // IMPORTANT: Only include children if the parent is expanded
-        if (expandedNoteIds[note.noteId] && note.children && note.children.length > 0) {
+        if (expandedNoteIds[note.noteId] && note.children?.length > 0) {
           collectIds(note.children);
         }
       }
     };
-    collectIds(rootNotes); // Start collection from root notes
-    console.log("Rendered Note IDs for SortableContext:", ids.length); // Debug log
+    collectIds(rootNotes);
     return ids;
-    // Dependencies: rootNotes (which depends on allNotes) and expandedNoteIds
   }, [rootNotes, expandedNoteIds]);
-  // --- *** END NEW *** ---
 
 
-  // --- DND Sensor Setup ---
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8,
-      },
-    }),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-  // --- End DND Sensor Setup ---
+  // --- Use Drag and Drop Hook ---
+  const {
+    sensors,
+    handleDragStart,
+    handleDragEnd,
+    handleDragCancel
+  } = useNoteDragAndDrop({
+    notesById, // Keep the first instance
+    childrenByParentId, // Keep the first instance
+    renderedNoteIds, // Keep the first instance
+    isMovingNote, // Keep the first instance
+    setIsMovingNote, // Keep the first instance
+    setDraggingNoteId,
+    z
+  });
 
-  // --- DND Event Handlers ---
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    console.log("Drag Start:", event.active.id);
-    setDraggingNoteId(event.active.id);
-    setIsMovingNote(false);
-  }, []);
+  // --- Deletion Logic ---
+  const handleConfirmDelete = useCallback(async () => {
+      if (!noteToDeleteId || !z) {
+          finishDeleteNote(); // Reset state even on error
+          return;
+      }
 
-  const handleDragCancel = useCallback(() => {
-    console.log("Drag Cancelled");
-    setDraggingNoteId(null);
-    setIsMovingNote(false);
-  }, []);
+      // Call the state hook function that sets isDeletingNote = true
+      confirmDeleteNote();
 
-  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
-    const { active, over } = event;
-    setDraggingNoteId(null);
+      const noteBeingDeleted = notesById.get(noteToDeleteId); // For toast message
 
-    if (!over) {
-      console.log("Drag End: No 'over' target.");
-      return;
-    }
+      try {
+          await z.mutate.note.delete({ noteId: noteToDeleteId });
 
-    const activeId = active.id as string;
-    const overId = over.id as string;
+          toast.success(`Note "${noteBeingDeleted?.title || 'Untitled'}" and its children deleted.`);
 
-    console.log(`Drag End: Active=${activeId}, Over=${overId}`);
+          // If the currently active note was deleted, navigate away
+          if (activeNoteIdParam === noteToDeleteId) {
+              navigate('/'); // Navigate to a safe default route
+          }
+          // Optionally: Collapse parent if it becomes childless? (More complex state update)
 
-    if (activeId === overId) {
-      console.log("Drag End: Dragged onto self, no action.");
-      return;
-    }
-
-    if (!z) {
-        toast.error("Sync engine not available.");
-        console.error("Drag End: Zero client not available.");
-        return;
-    }
-    if (isMovingNote) {
-        console.warn("Drag End: Already processing a move.");
-        return;
-    }
-
-    const activeNote = notesById.get(activeId);
-    const overNote = notesById.get(overId);
-
-    if (!activeNote || !overNote) {
-      console.error(`Drag End Error: Could not find active (${activeId}) or over (${overId}) note in notesById map.`);
-      toast.error("Error processing note move: Note data missing.");
-      return;
-    }
-
-    console.log(`Attempting move: Note "${activeNote.title}" (${activeId}, parent=${activeNote.parentId}) over "${overNote.title}" (${overId}, parent=${overNote.parentId})`);
-
-    setIsMovingNote(true);
-
-    try {
-        // --- Determine Target Parent and Siblings ---
-        // Use the `renderedNoteIds` to find the correct context for placement.
-        // The `overId` tells us which item we dropped onto. Its position in the
-        // `renderedNoteIds` list gives us context relative to other *visible* items.
-        const overIndexInRendered = renderedNoteIds.indexOf(overId);
-        if (overIndexInRendered === -1) {
-             console.error(`Drag End Error: 'over' note ${overId} not found in the current renderedNoteIds list. State might be inconsistent.`);
-             toast.error("Error processing note move: Cannot determine drop position.");
-             setIsMovingNote(false);
-             return;
-        }
-
-        // Determine the *intended* previous and next visible items based on the drop position
-        // Note: This logic assumes dropping *onto* an item means placing *before* it conceptually
-        // when calculating sort keys relative to siblings. dnd-kit's collision detection often
-        // places the `over` element slightly differently, so we need to be robust.
-
-        // Let's refine the logic to calculate the correct neighbors *within the target parent's list*.
-        // 1. Determine the target parent ID: It's usually the parent of the `over` note.
-        const targetParentId = overNote.parentId ?? null;
-        console.log(`Target Parent ID: ${targetParentId === null ? 'root' : targetParentId}`);
-
-        // 2. Get the list of siblings under the target parent from our reliable source
-        const targetSiblings = childrenByParentId.get(targetParentId) ?? [];
-        const targetSiblingIds = targetSiblings.map(note => note.noteId);
-        console.log(`Target Siblings (${targetSiblingIds.length}):`, targetSiblingIds);
-
-        // 3. Find the index of the 'over' item within its actual siblings list
-        const overIndexInSiblings = targetSiblingIds.indexOf(overId);
-        if (overIndexInSiblings === -1) {
-            console.error(`Drag End Error: 'over' note ${overId} not found in its own calculated siblings list (parent: ${targetParentId}). This indicates a data structure inconsistency.`);
-            toast.error("Error processing note move: Could not determine position among siblings.");
-            setIsMovingNote(false);
-            return;
-        }
-
-        // 4. Simulate the move to find the final neighbors for sort key calculation
-        let movedSiblingIds: string[];
-        const originalActiveIndexInSiblings = targetSiblingIds.indexOf(activeId); // Check if it was already a sibling
-
-        if (originalActiveIndexInSiblings !== -1 && activeNote.parentId === targetParentId) {
-            // Reordering within the same parent
-            movedSiblingIds = arrayMove(targetSiblingIds, originalActiveIndexInSiblings, overIndexInSiblings);
-            console.log("Reordering siblings. Moved IDs:", movedSiblingIds);
-        } else {
-            // Moving to a new parent OR inserting relative to 'over' item
-            // We insert the activeId *before* the overId in the target sibling list conceptually
-            const insertIndex = overIndexInSiblings;
-            movedSiblingIds = [
-                ...targetSiblingIds.slice(0, insertIndex),
-                activeId,
-                ...targetSiblingIds.slice(insertIndex)
-            ];
-             console.log(`Changing parent/position. Inserted ID at index ${insertIndex}. Moved IDs:`, movedSiblingIds);
-        }
-
-        // 5. Find the final index of the moved item in the simulated list
-        const finalIndex = movedSiblingIds.indexOf(activeId);
-        if (finalIndex === -1) {
-            console.error("Drag End Error: activeId not found in simulated movedSiblingIds. This should not happen.");
-            throw new Error("Failed to calculate final position.");
-        }
-        console.log(`Final index of ${activeId} in simulated list: ${finalIndex}`);
-
-        // 6. Determine the notes immediately before and after the final position *within this sibling group*
-        const prevId = finalIndex > 0 ? movedSiblingIds[finalIndex - 1] : null;
-        const nextId = finalIndex < movedSiblingIds.length - 1 ? movedSiblingIds[finalIndex + 1] : null;
-
-        const prevNote = prevId ? notesById.get(prevId) : null;
-        const nextNote = nextId ? notesById.get(nextId) : null;
-
-        console.log(`Neighboring notes for sort key: Prev=${prevNote?.noteId ?? 'null'} (${prevNote?.sortKey}), Next=${nextNote?.noteId ?? 'null'} (${nextNote?.sortKey})`);
-
-        // 7. Calculate the new sort key
-        const newSortKey = getSortKeyBetweenItems(prevNote, nextNote);
-        const finalParentId = targetParentId; // The parent is determined by the 'over' item's parent
-        console.log(`Calculated new parentId: ${finalParentId}, newSortKey: ${newSortKey}`);
-
-        // --- Check if Changes are Needed ---
-        if (activeNote.parentId === finalParentId && activeNote.sortKey === newSortKey) {
-            console.log("Drag end ignored: No actual change in parent or sort key.");
-            setIsMovingNote(false);
-            return; // No change needed
-        }
-
-        // --- Call Mutator ---
-        console.log(`Executing update for note ${activeId}: parentId=${finalParentId}, sortKey=${newSortKey}`);
-        await z.mutate.note.update({
-            noteId: activeId,
-            parentId: finalParentId,
-            sortKey: newSortKey,
-            updatedAt: Date.now(),
-        });
-
-        toast.success(`Note "${activeNote.title || 'Untitled'}" moved.`);
-
-    } catch (error: any) {
-        console.error("Failed to move note:", error);
-        toast.error(`Failed to move note: ${error.message || 'Unknown error'}`);
-    } finally {
-        setIsMovingNote(false); // Indicate processing end
-    }
-    // Add renderedNoteIds to dependency array if used directly (it's used indirectly via overIndexInRendered)
-  }, [z, notesById, childrenByParentId, isMovingNote, renderedNoteIds]); // Add renderedNoteIds here
+      } catch (error: any) {
+          toast.error(`Failed to delete note: ${error.message || 'Unknown error'}`);
+      } finally {
+          finishDeleteNote(); // Reset isDeletingNote and noteToDeleteId
+      }
+  }, [noteToDeleteId, z, notesById, activeNoteIdParam, navigate, confirmDeleteNote, finishDeleteNote]);
 
 
-  // --- Rendering ---
-  const handleToggleExpand = useCallback((noteId: string) => {
-    setExpandedNoteIds(prev => ({ ...prev, [noteId]: !prev[noteId] }));
-  }, []);
-
+  // --- Rendering Helpers ---
   const getNextTopLevelSortKey = useCallback(() => {
     return getSortKeyForNewItem(null, childrenByParentId);
   }, [childrenByParentId]);
 
-  // Recursive function to render notes - unchanged
+  // Recursive function to render notes
   const renderNoteItems = useCallback((notes: NoteWithChildren[], level: number): React.ReactNode[] => {
-    return notes.flatMap(note => [
-      <NoteItem
-        key={note.noteId} // Key must be stable and match ID used in SortableContext
-        note={note}
-        level={level}
-        expandedNoteIds={expandedNoteIds}
-        onToggleExpand={handleToggleExpand}
-        activeNoteId={activeNoteIdParam}
-        notesById={notesById}
-        childrenByParentId={childrenByParentId}
-      />,
-      // Recursively render children if expanded
-      ...( (expandedNoteIds[note.noteId] && note.children && note.children.length > 0)
-           ? renderNoteItems(note.children, level + 1)
-           : []
-      )
-    ]);
-  }, [expandedNoteIds, handleToggleExpand, activeNoteIdParam, notesById, childrenByParentId]);
+    return notes.flatMap(note => {
+      // Check if this specific note is the one currently targeted for deletion
+      const isNoteCurrentlyDeleting = isDeletingNote && noteToDeleteId === note.noteId;
+      return [
+        <NoteItem
+          key={note.noteId}
+          note={note}
+          level={level}
+          expandedNoteIds={expandedNoteIds}
+          onToggleExpand={handleToggleExpand}
+          activeNoteId={activeNoteIdParam}
+          notesById={notesById}
+          childrenByParentId={childrenByParentId}
+          // --- Pass Deletion Props ---
+          onRequestDelete={requestDeleteNote} // Pass function to open dialog
+          isDeleting={isNoteCurrentlyDeleting} // Pass deleting status for this specific note
+        />,
+        ...( (expandedNoteIds[note.noteId] && note.children?.length > 0)
+             ? renderNoteItems(note.children, level + 1)
+             : []
+        )
+      ];
+    });
+  }, [
+      expandedNoteIds, handleToggleExpand, activeNoteIdParam, notesById,
+      childrenByParentId, requestDeleteNote, isDeletingNote, noteToDeleteId // Add deletion state dependencies
+  ]);
 
 
-  // Find the note data for the DragOverlay - unchanged
+  // Find the note data for the DragOverlay
   const draggingNoteData = useMemo(() => {
     if (!draggingNoteId) return null;
     return notesById.get(draggingNoteId as string) ?? null;
   }, [draggingNoteId, notesById]);
 
-  // Find the level of the dragging note - unchanged
+  // Find the level of the dragging note
    const draggingNoteLevel = useMemo(() => {
     if (!draggingNoteData) return 0;
     let level = 0;
     let currentParentId = draggingNoteData.parentId;
-    while (currentParentId !== null && level < 10) {
+    while (currentParentId !== null && level < 10) { // Limit depth for safety
         const parent = notesById.get(currentParentId);
         if (!parent) break;
         level++;
@@ -303,7 +189,14 @@ export function NoteList() {
     return level;
    }, [draggingNoteData, notesById]);
 
+  // Get title for confirmation dialog
+  const noteToDeleteTitle = useMemo(() => {
+      if (!noteToDeleteId) return "";
+      return notesById.get(noteToDeleteId)?.title || "Untitled Note";
+  }, [noteToDeleteId, notesById]);
 
+
+  // --- Main Render ---
   return (
     <DndContext
       sensors={sensors}
@@ -314,33 +207,31 @@ export function NoteList() {
       measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
     >
       <div className="relative flex h-full flex-col overflow-hidden border-r bg-muted/40 dark:bg-zinc-900/40">
+        {/* Header */}
         <div className="flex h-[60px] items-center justify-end border-b px-4 flex-shrink-0">
           <AddNoteButton getNextSortKey={getNextTopLevelSortKey} />
         </div>
 
-        {/* --- *** Use the CORRECT ordered list of IDs *** --- */}
+        {/* Sortable List */}
         <SortableContext items={renderedNoteIds} strategy={verticalListSortingStrategy}>
           <ScrollArea className="flex-1 min-h-0 p-2">
-            {!allNotes || rootNotes.length === 0 && allNotes?.length === 0 ? ( // Check allNotes length as well
+            {isLoading ? (
+              <div className="p-4 text-center text-sm text-muted-foreground">
+                Loading notes... <Loader2 className="inline-block h-4 w-4 animate-spin" />
+              </div>
+            ) : rootNotes.length === 0 && allNotes?.length === 0 ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
                 No notes yet. Create one!
               </div>
             ) : (
               <nav className="space-y-1">
-                {/* Render items recursively */}
                 {renderNoteItems(rootNotes, 0)}
               </nav>
             )}
-             {!notesQueryResult && !allNotes && ( // Show loading only if no query result AND no notes data yet
-                 <div className="p-4 text-center text-sm text-muted-foreground">
-                    Loading notes... <Loader2 className="inline-block h-4 w-4 animate-spin" />
-                 </div>
-            )}
           </ScrollArea>
         </SortableContext>
-        {/* --- *** END CHANGE *** --- */}
 
-         {/* Drag Overlay - Unchanged */}
+         {/* Drag Overlay */}
          <DragOverlay dropAnimation={null}>
            {draggingNoteData ? (
              <NoteItem
@@ -348,21 +239,62 @@ export function NoteList() {
                note={draggingNoteData}
                level={draggingNoteLevel}
                expandedNoteIds={expandedNoteIds}
-               onToggleExpand={() => {}}
+               onToggleExpand={() => {}} // Overlay item doesn't toggle expand
                activeNoteId={activeNoteIdParam}
                notesById={notesById}
                childrenByParentId={childrenByParentId}
+               // --- Pass Deletion Props to Overlay Item ---
+               // Overlay item cannot be deleted interactively, so pass defaults
+               onRequestDelete={() => {}}
+               isDeleting={false}
              />
            ) : null}
          </DragOverlay>
 
-        {/* Saving Indicator - Unchanged */}
-        {isMovingNote && (
+        {/* --- Saving/Deleting Indicator --- */}
+        {(isMovingNote || isDeletingNote) && (
           <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-20 pointer-events-none">
             <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            <span className="ml-2 text-sm font-medium">Saving position...</span>
+            <span className="ml-2 text-sm font-medium">
+              {isMovingNote ? 'Saving position...' : 'Deleting note...'}
+            </span>
           </div>
         )}
+
+        {/* --- Delete Confirmation Dialog --- */}
+        <AlertDialog open={!!noteToDeleteId} onOpenChange={(open) => !open && cancelDeleteNote()}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the note
+                    <strong className="mx-1">"{noteToDeleteTitle}"</strong>
+                    and all of its descendants.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                <AlertDialogCancel onClick={cancelDeleteNote} disabled={isDeletingNote}>
+                    Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                    onClick={handleConfirmDelete}
+                    disabled={isDeletingNote}
+                    className={cn(isDeletingNote && "cursor-not-allowed opacity-50")} // Style disabled action
+                    // Use destructive variant if available in your theme
+                    // variant="destructive" // Uncomment if you have a destructive variant
+                 >
+                    {isDeletingNote ? (
+                        <>
+                           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Deleting...
+                        </>
+                    ) : (
+                        "Yes, delete note"
+                    )}
+                </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
       </div>
     </DndContext>
   );
