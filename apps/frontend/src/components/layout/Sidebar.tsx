@@ -29,7 +29,7 @@ type NavItem = {
 
 // Navigation items with labels
 const navItems: NavItem[] = [
-  { to: "/", label: "Home", icon: Home, end: true },
+  { to: "/notes", label: "Notes", icon: Home, end: true },
   { to: "/activity", label: "Activity", icon: Bell },
 ];
 
